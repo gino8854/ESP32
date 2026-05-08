@@ -3,45 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESP32 LED 遠端開關</title>
+    <title>ESP32 遠端監測面板</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     <style>
-        body { font-family: sans-serif; background-color: #f0f2f5; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; width: 280px; }
-        h2 { color: #1c1e21; margin-bottom: 25px; }
-        button { width: 100%; padding: 15px; margin: 10px 0; border: none; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        .btn-on { background-color: #28a745; color: white; }
-        .btn-off { background-color: #dc3545; color: white; }
-        button:active { transform: scale(0.98); }
-        #status { font-size: 0.85rem; color: #65676b; margin-top: 20px; }
+        body { font-family: sans-serif; background-color: #f4f7f6; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; width: 300px; }
+        
+        /* 裝置狀態燈樣式 */
+        .device-info { display: flex; align-items: center; justify-content: center; margin-bottom: 20px; background: #f8f9fa; padding: 10px; border-radius: 10px; }
+        .status-dot { width: 12px; height: 12px; border-radius: 50%; background-color: #bbb; margin-right: 10px; }
+        .online { background-color: #28a745; box-shadow: 0 0 8px #28a745; }
+        .offline { background-color: #dc3545; box-shadow: 0 0 8px #dc3545; }
+
+        h2 { margin: 0 0 20px 0; color: #333; }
+        button { width: 100%; padding: 15px; margin: 8px 0; border: none; border-radius: 10px; font-size: 1rem; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        .btn-on { background-color: #4a90e2; color: white; }
+        .btn-off { background-color: #6c757d; color: white; }
+        #net-status { font-size: 0.75rem; color: #999; margin-top: 15px; }
     </style>
 </head>
 <body>
 
     <div class="card">
-        <h2>LED 遠端控制</h2>
-        
-        <button class="btn-on" onclick="sendCmd('ON')">點亮 LED</button>
+        <div class="device-info">
+            <div id="dot" class="status-dot"></div>
+            <span id="esp-status">正在確認設備狀態...</span>
+        </div>
+
+        <h2>LED 控制</h2>
+        <button class="btn-on" onclick="sendCmd('ON')">打開 LED</button>
         <button class="btn-off" onclick="sendCmd('OFF')">關閉 LED</button>
 
-        <div id="status">連線中...</div>
+        <div id="net-status">伺服器連線中...</div>
     </div>
 
     <script>
         const broker = "broker.emqx.io";
         const port = 8084;
         const topicLed = "ginohome/esp32/led";
-        const clientId = "Web_LED_" + Math.random().toString(16).substr(2, 5);
+        const topicStatus = "ginohome/esp32/status";
+        const clientId = "Web_Monitor_" + Math.random().toString(16).substr(2, 5);
 
         const client = new Paho.MQTT.Client(broker, port, clientId);
+
+        client.onMessageArrived = (msg) => {
+            if (msg.destinationName === topicStatus) {
+                const status = msg.payloadString;
+                const dot = document.getElementById("dot");
+                const text = document.getElementById("esp-status");
+                
+                if (status === "Online") {
+                    dot.className = "status-dot online";
+                    text.innerText = "ESP32 在線";
+                } else {
+                    dot.className = "status-dot offline";
+                    text.innerText = "ESP32 已離線";
+                }
+            }
+        };
 
         const options = {
             useSSL: true,
             onSuccess: () => {
-                document.getElementById("status").innerText = "連線狀態：已連線";
-            },
-            onFailure: (err) => {
-                document.getElementById("status").innerText = "連線失敗: " + err.errorMessage;
+                document.getElementById("net-status").innerText = "MQTT 伺服器：已連線";
+                client.subscribe(topicStatus); // 訂閱狀態主題
             }
         };
 
@@ -52,7 +77,6 @@
                 const message = new Paho.MQTT.Message(state);
                 message.destinationName = topicLed;
                 client.send(message);
-                console.log("已送出: " + state);
             }
         }
     </script>
