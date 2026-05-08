@@ -3,79 +3,92 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESP32 遠端監測面板</title>
+    <title>ESP32 智能控制面板</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     <style>
-        body { font-family: sans-serif; background-color: #f4f7f6; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; width: 300px; }
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f0f2f5; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .card { background: white; padding: 30px; border-radius: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; width: 320px; }
         
-        /* 裝置狀態燈樣式 */
-        .device-info { display: flex; align-items: center; justify-content: center; margin-bottom: 20px; background: #f8f9fa; padding: 10px; border-radius: 10px; }
-        .status-dot { width: 12px; height: 12px; border-radius: 50%; background-color: #bbb; margin-right: 10px; }
-        .online { background-color: #28a745; box-shadow: 0 0 8px #28a745; }
-        .offline { background-color: #dc3545; box-shadow: 0 0 8px #dc3545; }
+        /* 設備在線狀態 */
+        .status-bar { display: flex; align-items: center; justify-content: center; font-size: 0.8rem; margin-bottom: 20px; color: #666; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: #bbb; }
+        .online-dot { background: #28a745; box-shadow: 0 0 5px #28a745; }
 
-        h2 { margin: 0 0 20px 0; color: #333; }
-        button { width: 100%; padding: 15px; margin: 8px 0; border: none; border-radius: 10px; font-size: 1rem; font-weight: bold; cursor: pointer; transition: 0.3s; }
-        .btn-on { background-color: #4a90e2; color: white; }
-        .btn-off { background-color: #6c757d; color: white; }
-        #net-status { font-size: 0.75rem; color: #999; margin-top: 15px; }
+        /* LED 狀態顯示區 */
+        .led-display { margin: 20px 0; padding: 20px; border-radius: 15px; background: #f8f9fa; }
+        .led-icon { font-size: 50px; margin-bottom: 10px; filter: grayscale(1); transition: 0.3s; }
+        .led-on-fx { filter: grayscale(0) drop-shadow(0 0 15px #ffd700); }
+        #led-text { font-weight: bold; color: #555; }
+
+        button { width: 100%; padding: 12px; margin: 8px 0; border: none; border-radius: 12px; font-size: 1rem; cursor: pointer; font-weight: 600; }
+        .btn-on { background: #4a90e2; color: white; }
+        .btn-off { background: #e9ecef; color: #333; }
     </style>
 </head>
 <body>
 
     <div class="card">
-        <div class="device-info">
-            <div id="dot" class="status-dot"></div>
-            <span id="esp-status">正在確認設備狀態...</span>
+        <div class="status-bar">
+            <div id="dot" class="dot"></div>
+            <span id="esp-status">檢查設備中...</span>
         </div>
 
-        <h2>LED 控制</h2>
-        <button class="btn-on" onclick="sendCmd('ON')">打開 LED</button>
-        <button class="btn-off" onclick="sendCmd('OFF')">關閉 LED</button>
+        <div class="led-display">
+            <div id="led-icon" class="led-icon">💡</div>
+            <div id="led-text">狀態：未知</div>
+        </div>
 
-        <div id="net-status">伺服器連線中...</div>
+        <button class="btn-on" onclick="sendCmd('ON')">點亮 LED</button>
+        <button class="btn-off" onclick="sendCmd('OFF')">關閉 LED</button>
     </div>
 
     <script>
         const broker = "broker.emqx.io";
         const port = 8084;
-        const topicLed = "ginohome/esp32/led";
+        const topicControl = "ginohome/esp32/led";
+        const topicLedStatus = "ginohome/esp32/ledStatus";
         const topicStatus = "ginohome/esp32/status";
-        const clientId = "Web_Monitor_" + Math.random().toString(16).substr(2, 5);
+        const clientId = "Web_" + Math.random().toString(16).substr(2, 5);
 
         const client = new Paho.MQTT.Client(broker, port, clientId);
 
         client.onMessageArrived = (msg) => {
+            const payload = msg.payloadString;
+            
+            // 處理在線狀態
             if (msg.destinationName === topicStatus) {
-                const status = msg.payloadString;
-                const dot = document.getElementById("dot");
-                const text = document.getElementById("esp-status");
-                
-                if (status === "Online") {
-                    dot.className = "status-dot online";
-                    text.innerText = "ESP32 在線";
+                document.getElementById("dot").className = (payload === "Online") ? "dot online-dot" : "dot";
+                document.getElementById("esp-status").innerText = (payload === "Online") ? "ESP32 已連線" : "ESP32 已離線";
+            }
+            
+            // 處理 LED 真實狀態
+            if (msg.destinationName === topicLedStatus) {
+                const icon = document.getElementById("led-icon");
+                const text = document.getElementById("led-text");
+                if (payload === "ON") {
+                    icon.classList.add("led-on-fx");
+                    text.innerText = "狀態：已點亮";
+                    text.style.color = "#d4af37";
                 } else {
-                    dot.className = "status-dot offline";
-                    text.innerText = "ESP32 已離線";
+                    icon.classList.remove("led-on-fx");
+                    text.innerText = "狀態：已熄滅";
+                    text.style.color = "#555";
                 }
             }
         };
 
-        const options = {
+        client.connect({
             useSSL: true,
             onSuccess: () => {
-                document.getElementById("net-status").innerText = "MQTT 伺服器：已連線";
-                client.subscribe(topicStatus); // 訂閱狀態主題
+                client.subscribe(topicStatus);
+                client.subscribe(topicLedStatus);
             }
-        };
-
-        client.connect(options);
+        });
 
         function sendCmd(state) {
             if (client.isConnected()) {
                 const message = new Paho.MQTT.Message(state);
-                message.destinationName = topicLed;
+                message.destinationName = topicControl;
                 client.send(message);
             }
         }
