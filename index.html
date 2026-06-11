@@ -17,7 +17,7 @@
 
     <script>
         // 設定 MQTT 參數
-        const client = new Paho.MQTT.Client("broker.hivemq.com", 8000, "web_client_" + parseInt(Math.random() * 100));
+        const client = new Paho.MQTT.Client("broker.hivemq.com", 8080, "web_client_" + parseInt(Math.random() * 100));
 
         client.onMessageArrived = function(message) {
             const statusBox = document.getElementById("status-box");
