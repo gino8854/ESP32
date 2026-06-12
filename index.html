@@ -9,6 +9,7 @@
         .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
         .bg-online { background-color: #27ae60; } .bg-offline { background-color: #c0392b; }
         #schedule-list { text-align: left; margin: 15px 0; padding-left: 20px; color: #555; }
+        .del-btn { cursor: pointer; color: red; font-size: 0.8em; margin-left: 10px; border: 1px solid #ffcccc; padding: 0 5px; border-radius: 3px; }
     </style>
 </head>
 <body>
@@ -19,7 +20,7 @@
         <div>ESP32 狀態: <span id="esp-dot" class="status-dot bg-offline"></span></div>
         <div id="schedule-container" style="text-align: left; margin-top: 15px;">
             <strong>目前排程:</strong>
-            <ul id="schedule-list"><li>等待連線...</li></ul>
+            <ul id="schedule-list"><li>載入中...</li></ul>
         </div>
         
         <input type="time" id="timeInput">
@@ -30,6 +31,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     <script>
         let lastSeen = Date.now();
+        let schedules = []; // 用於本地管理排程的陣列
         const client = new Paho.MQTT.Client("broker.hivemq.com", 8884, "web_" + parseInt(Math.random() * 100));
         
         client.onMessageArrived = (msg) => {
@@ -39,12 +41,35 @@
             if (msg.destinationName === "pillbox/status") {
                 document.getElementById("status-box").innerText = msg.payloadString === "Taken" ? "✅ 已領取" : "⚠️ 等待中";
             } else if (msg.destinationName === "pillbox/config_ack") {
-                document.getElementById("schedule-list").innerHTML = 
-                    msg.payloadString.split(", ").map(t => `<li>🕒 ${t}</li>`).join('');
+                // 更新本地陣列並重新渲染
+                schedules = msg.payloadString ? msg.payloadString.split(", ") : [];
+                renderList();
             }
         };
 
-        // 心跳監控器：每 2 秒檢查一次，超過 15 秒沒收到訊號即顯示離線
+        function renderList() {
+            const list = document.getElementById("schedule-list");
+            list.innerHTML = schedules.map((time, index) => 
+                `<li>🕒 ${time} <span class="del-btn" onclick="deleteSchedule(${index})">刪除</span></li>`
+            ).join('');
+        }
+
+        function deleteSchedule(index) {
+            schedules.splice(index, 1); // 刪除本地陣列中的項目
+            const newPayload = schedules.join(", ");
+            // 發送給 ESP32，ESP32 原有程式會將其存入並覆蓋原有清單
+            client.send("pillbox/set_time", newPayload || "EMPTY"); 
+        }
+
+        function sendTime() {
+            const time = document.getElementById("timeInput").value;
+            if(time) {
+                // 發送單一新增時間，ESP32 原程式會將其 append 到儲存空間
+                client.send("pillbox/set_time", time);
+            }
+        }
+
+        // 心跳監控器
         setInterval(() => {
             if (Date.now() - lastSeen > 15000) {
                 document.getElementById("esp-dot").className = "status-dot bg-offline";
@@ -56,9 +81,6 @@
             client.subscribe("pillbox/config_ack");
         }});
 
-        function sendTime() {
-            client.send("pillbox/set_time", document.getElementById("timeInput").value);
-        }
         setInterval(() => document.getElementById('clock').innerText = new Date().toLocaleTimeString('zh-TW', { hour12: false }), 1000);
     </script>
 </body>
