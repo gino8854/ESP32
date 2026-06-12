@@ -16,8 +16,8 @@
     <div id="status-box" class="waiting">系統連線中...</div>
 
     <script>
-        // 設定 MQTT 參數
-        const client = new Paho.MQTT.Client("broker.hivemq.com", 8000, "web_client_" + parseInt(Math.random() * 100));
+        // 使用 8884 埠並啟用 SSL (wss)
+        const client = new Paho.MQTT.Client("broker.hivemq.com", 8884, "web_client_" + parseInt(Math.random() * 100));
 
         client.onMessageArrived = function(message) {
             const statusBox = document.getElementById("status-box");
@@ -30,10 +30,16 @@
             }
         };
 
+        // 加入 useSSL: true 解決安全性阻擋
         client.connect({
+            useSSL: true,
             onSuccess: () => {
                 client.subscribe("pillbox/status");
                 document.getElementById("status-box").innerHTML = "🕒 等待取藥中...";
+            },
+            onFailure: (err) => {
+                document.getElementById("status-box").innerHTML = "⚠️ 連線失敗，請重整頁面";
+                console.log(err);
             }
         });
     </script>
