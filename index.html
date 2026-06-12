@@ -16,14 +16,15 @@
         <h2>智慧藥盒監控</h2>
         <div id="clock" style="font-size: 1.5em; font-weight: bold; margin-bottom: 10px;">00:00:00</div>
         
-        <div id="schedule-container" style="text-align: left;">
+        <div>ESP32 狀態: <span id="esp-dot" class="status-dot bg-offline"></span></div>
+        <div id="schedule-container" style="text-align: left; margin-top: 15px;">
             <strong>目前排程:</strong>
             <ul id="schedule-list"><li>載入中...</li></ul>
         </div>
         
         <input type="time" id="timeInput">
         <button onclick="sendTime()">新增排程</button>
-        <div id="status-box" style="margin-top: 20px; padding: 10px; border-radius: 10px;">系統初始化中...</div>
+        <div id="status-box" style="margin-top: 20px; padding: 10px;">系統初始化中...</div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
@@ -33,6 +34,8 @@
         client.onMessageArrived = (msg) => {
             if (msg.destinationName === "pillbox/status") {
                 document.getElementById("status-box").innerText = msg.payloadString === "Taken" ? "✅ 已領取" : "⚠️ 等待中";
+            } else if (msg.destinationName === "pillbox/esp_status") {
+                document.getElementById("esp-dot").className = "status-dot " + (msg.payloadString === "Online" ? "bg-online" : "bg-offline");
             } else if (msg.destinationName === "pillbox/config_ack") {
                 const list = document.getElementById("schedule-list");
                 list.innerHTML = msg.payloadString.split(", ").map(t => `<li>🕒 ${t}</li>`).join('');
@@ -41,6 +44,7 @@
 
         client.connect({ useSSL: true, onSuccess: () => {
             client.subscribe("pillbox/status");
+            client.subscribe("pillbox/esp_status");
             client.subscribe("pillbox/config_ack");
         }});
 
