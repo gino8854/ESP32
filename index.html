@@ -31,7 +31,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     <script>
         let lastSeen = Date.now();
-        let schedules = []; // 用於本地管理排程的陣列
+        let schedules = [];
         const client = new Paho.MQTT.Client("broker.hivemq.com", 8884, "web_" + parseInt(Math.random() * 100));
         
         client.onMessageArrived = (msg) => {
@@ -41,39 +41,29 @@
             if (msg.destinationName === "pillbox/status") {
                 document.getElementById("status-box").innerText = msg.payloadString === "Taken" ? "✅ 已領取" : "⚠️ 等待中";
             } else if (msg.destinationName === "pillbox/config_ack") {
-                // 更新本地陣列並重新渲染
                 schedules = msg.payloadString ? msg.payloadString.split(", ") : [];
-                renderList();
+                const list = document.getElementById("schedule-list");
+                list.innerHTML = schedules.map((time, index) => 
+                    `<li>🕒 ${time} <span class="del-btn" onclick="deleteSchedule(${index})">刪除</span></li>`
+                ).join('');
             }
         };
 
-        function renderList() {
-            const list = document.getElementById("schedule-list");
-            list.innerHTML = schedules.map((time, index) => 
-                `<li>🕒 ${time} <span class="del-btn" onclick="deleteSchedule(${index})">刪除</span></li>`
-            ).join('');
-        }
-
         function deleteSchedule(index) {
-            schedules.splice(index, 1); // 刪除本地陣列中的項目
-            const newPayload = schedules.join(", ");
-            // 發送給 ESP32，ESP32 原有程式會將其存入並覆蓋原有清單
-            client.send("pillbox/set_time", newPayload || "EMPTY"); 
+            schedules.splice(index, 1);
+            client.send("pillbox/set_time", "CLEAR"); // 發送清除指令
+            setTimeout(() => {
+                schedules.forEach(time => client.send("pillbox/set_time", time));
+            }, 300);
         }
 
         function sendTime() {
             const time = document.getElementById("timeInput").value;
-            if(time) {
-                // 發送單一新增時間，ESP32 原程式會將其 append 到儲存空間
-                client.send("pillbox/set_time", time);
-            }
+            if(time) client.send("pillbox/set_time", time);
         }
 
-        // 心跳監控器
         setInterval(() => {
-            if (Date.now() - lastSeen > 15000) {
-                document.getElementById("esp-dot").className = "status-dot bg-offline";
-            }
+            if (Date.now() - lastSeen > 15000) document.getElementById("esp-dot").className = "status-dot bg-offline";
         }, 2000);
 
         client.connect({ useSSL: true, onSuccess: () => {
