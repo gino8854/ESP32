@@ -19,7 +19,7 @@
         <div>ESP32 狀態: <span id="esp-dot" class="status-dot bg-offline"></span></div>
         <div id="schedule-container" style="text-align: left; margin-top: 15px;">
             <strong>目前排程:</strong>
-            <ul id="schedule-list"><li>載入中...</li></ul>
+            <ul id="schedule-list"><li>等待連線...</li></ul>
         </div>
         
         <input type="time" id="timeInput">
@@ -33,7 +33,6 @@
         const client = new Paho.MQTT.Client("broker.hivemq.com", 8884, "web_" + parseInt(Math.random() * 100));
         
         client.onMessageArrived = (msg) => {
-            // 每當收到任何訊息，更新心跳時間並顯示為在線
             lastSeen = Date.now();
             document.getElementById("esp-dot").className = "status-dot bg-online";
 
@@ -45,7 +44,7 @@
             }
         };
 
-        // 心跳監控器：每 2 秒檢查一次，若超過 15 秒沒訊息，判定為離線
+        // 心跳監控器：每 2 秒檢查一次，超過 15 秒沒收到訊號即顯示離線
         setInterval(() => {
             if (Date.now() - lastSeen > 15000) {
                 document.getElementById("esp-dot").className = "status-dot bg-offline";
