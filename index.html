@@ -15,20 +15,29 @@
 <body>
     <div class="card">
         <h2>智慧藥盒監控</h2>
+        <div id="clock" style="font-size: 1.5em; font-weight: bold; color: #333; margin-bottom: 10px;">00:00:00</div>
         <div class="network-row">
             <div><span id="browser-dot" class="status-dot"></span>網頁</div>
             <div><span id="mqtt-dot" class="status-dot"></span>MQTT</div>
             <div><span id="esp-dot" class="status-dot"></span>ESP32</div>
         </div>
-        <div id="status-box">連線中...</div>
+        <div id="status-box">系統初始化中...</div>
         <hr>
         <div style="margin: 15px 0;">目前投藥時間: <b id="current-time-display">載入中...</b></div>
         <input type="time" id="timeInput">
-        <button onclick="sendTime()">設定時間</button>
+        <button onclick="sendTime()">設定投藥時間</button>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     <script>
+        // 即時時鐘邏輯
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock').innerText = now.toLocaleTimeString('zh-TW', { hour12: false });
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
         const client = new Paho.MQTT.Client("broker.hivemq.com", 8884, "web_" + parseInt(Math.random() * 100));
         function setStatus(id, online) { document.getElementById(id).className = "status-dot " + (online ? "bg-online" : "bg-offline"); }
 
