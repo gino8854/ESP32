@@ -6,21 +6,55 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     <style>
         body { font-family: sans-serif; text-align: center; padding: 50px; }
-        #status-box { font-size: 2em; padding: 20px; border: 2px solid #ccc; display: inline-block; }
+        #status-box { font-size: 2em; padding: 20px; border: 2px solid #ccc; display: inline-block; margin: 20px; }
+        .net-status { font-size: 1em; margin: 5px; padding: 5px; border-radius: 5px; display: inline-block; }
+        
+        /* 狀態顏色 */
+        .online { color: white; background-color: #28a745; }
+        .offline { color: white; background-color: #dc3545; }
         .taken { color: green; }
         .waiting { color: blue; }
     </style>
 </head>
 <body>
     <h1>藥物狀態監控</h1>
-    <div id="status-box" class="waiting">系統連線中...</div>
+    
+    <div>
+        <span id="browser-net" class="net-status">🌐 網路檢查中...</span>
+        <span id="mqtt-net" class="net-status">🔌 MQTT 連線中...</span>
+    </div>
+
+    <div id="status-box" class="waiting">系統初始化...</div>
 
     <script>
-        // 使用 8884 埠並啟用 SSL (wss)
         const client = new Paho.MQTT.Client("broker.hivemq.com", 8884, "web_client_" + parseInt(Math.random() * 100));
+        
+        const statusBox = document.getElementById("status-box");
+        const mqttStatus = document.getElementById("mqtt-net");
+        const browserStatus = document.getElementById("browser-net");
 
-        client.onMessageArrived = function(message) {
-            const statusBox = document.getElementById("status-box");
+        // 1. 監控瀏覽器網路狀態
+        function updateBrowserStatus() {
+            if (navigator.onLine) {
+                browserStatus.innerHTML = "🌐 網路連線正常";
+                browserStatus.className = "net-status online";
+            } else {
+                browserStatus.innerHTML = "🌐 網路已中斷";
+                browserStatus.className = "net-status offline";
+            }
+        }
+        window.addEventListener('online', updateBrowserStatus);
+        window.addEventListener('offline', updateBrowserStatus);
+        updateBrowserStatus(); // 初始化執行
+
+        // 2. MQTT 狀態處理
+        client.onConnectionLost = (responseObject) => {
+            mqttStatus.innerHTML = "🔌 MQTT 已斷線";
+            mqttStatus.className = "net-status offline";
+            statusBox.innerHTML = "⚠️ 系統連線異常";
+        };
+
+        client.onMessageArrived = (message) => {
             if (message.payloadString === "Taken") {
                 statusBox.innerHTML = "✅ 藥物已領取";
                 statusBox.className = "taken";
@@ -30,16 +64,17 @@
             }
         };
 
-        // 加入 useSSL: true 解決安全性阻擋
         client.connect({
             useSSL: true,
             onSuccess: () => {
                 client.subscribe("pillbox/status");
-                document.getElementById("status-box").innerHTML = "🕒 等待取藥中...";
+                mqttStatus.innerHTML = "🔌 MQTT 已連線";
+                mqttStatus.className = "net-status online";
+                statusBox.innerHTML = "🕒 等待取藥中...";
             },
             onFailure: (err) => {
-                document.getElementById("status-box").innerHTML = "⚠️ 連線失敗，請重整頁面";
-                console.log(err);
+                mqttStatus.innerHTML = "🔌 MQTT 連線失敗";
+                mqttStatus.className = "net-status offline";
             }
         });
     </script>
