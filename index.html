@@ -8,60 +8,46 @@
         .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 350px; text-align: center; }
         .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
         .bg-online { background-color: #27ae60; } .bg-offline { background-color: #c0392b; }
-        #status-box { font-size: 1.2em; font-weight: bold; margin: 20px 0; padding: 15px; border-radius: 10px; }
-        .network-row { display: flex; justify-content: space-around; font-size: 0.8em; color: #666; margin-bottom: 20px; }
+        #schedule-list { text-align: left; margin: 15px 0; padding-left: 20px; color: #555; }
     </style>
 </head>
 <body>
     <div class="card">
         <h2>智慧藥盒監控</h2>
-        <div id="clock" style="font-size: 1.5em; font-weight: bold; color: #333; margin-bottom: 10px;">00:00:00</div>
-        <div class="network-row">
-            <div><span id="browser-dot" class="status-dot"></span>網頁</div>
-            <div><span id="mqtt-dot" class="status-dot"></span>MQTT</div>
-            <div><span id="esp-dot" class="status-dot"></span>ESP32</div>
+        <div id="clock" style="font-size: 1.5em; font-weight: bold; margin-bottom: 10px;">00:00:00</div>
+        
+        <div id="schedule-container" style="text-align: left;">
+            <strong>目前排程:</strong>
+            <ul id="schedule-list"><li>載入中...</li></ul>
         </div>
-        <div id="status-box">系統初始化中...</div>
-        <hr>
-        <div style="margin: 15px 0;">目前投藥時間: <b id="current-time-display">載入中...</b></div>
+        
         <input type="time" id="timeInput">
-        <button onclick="sendTime()">新增/設定時間</button>
+        <button onclick="sendTime()">新增排程</button>
+        <div id="status-box" style="margin-top: 20px; padding: 10px; border-radius: 10px;">系統初始化中...</div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     <script>
-        function updateClock() {
-            const now = new Date();
-            document.getElementById('clock').innerText = now.toLocaleTimeString('zh-TW', { hour12: false });
-        }
-        setInterval(updateClock, 1000);
-        updateClock();
-
         const client = new Paho.MQTT.Client("broker.hivemq.com", 8884, "web_" + parseInt(Math.random() * 100));
-        function setStatus(id, online) { document.getElementById(id).className = "status-dot " + (online ? "bg-online" : "bg-offline"); }
-
+        
         client.onMessageArrived = (msg) => {
             if (msg.destinationName === "pillbox/status") {
-                document.getElementById("status-box").innerHTML = msg.payloadString === "Taken" ? "✅ 已領取" : "⚠️ 等待中";
-            } else if (msg.destinationName === "pillbox/esp_status") {
-                setStatus("esp-dot", msg.payloadString === "Online");
+                document.getElementById("status-box").innerText = msg.payloadString === "Taken" ? "✅ 已領取" : "⚠️ 等待中";
             } else if (msg.destinationName === "pillbox/config_ack") {
-                document.getElementById("current-time-display").innerText = msg.payloadString;
+                const list = document.getElementById("schedule-list");
+                list.innerHTML = msg.payloadString.split(", ").map(t => `<li>🕒 ${t}</li>`).join('');
             }
         };
 
         client.connect({ useSSL: true, onSuccess: () => {
-            setStatus("mqtt-dot", true);
             client.subscribe("pillbox/status");
-            client.subscribe("pillbox/esp_status");
             client.subscribe("pillbox/config_ack");
         }});
 
         function sendTime() {
             client.send("pillbox/set_time", document.getElementById("timeInput").value);
         }
-        window.addEventListener('online', () => setStatus("browser-dot", true));
-        setStatus("browser-dot", navigator.onLine);
+        setInterval(() => document.getElementById('clock').innerText = new Date().toLocaleTimeString('zh-TW', { hour12: false }), 1000);
     </script>
 </body>
 </html>
